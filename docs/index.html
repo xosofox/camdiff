@@ -25,9 +25,18 @@
             .preview {
                 padding: 5px;
             }
+
+            #error {
+                background-color: lightyellow;
+                border: 3px solid red;
+                margin: 20px;
+                padding: 30px;
+                display: none;
+            }
         </style>
     </head>
     <body>
+        <div id="error">FEHLER</div>
         <div style="display: flex">
             <div>
 
@@ -114,10 +123,16 @@
                 .then(stream => {
                     video.srcObject = stream;
                     video.play();
+                    document.getElementById('error').style.display = 'none';
                 })
                 .catch(error => {
-                    console.error(`getUserMedia error: ${error}`);
+                    showError(error.message);
                 });
+
+            const showError = (msg) => {
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').innerText = msg;
+            }
 
             const zeropad = (n) => {
                 if (n < 10) return '0' + n;
