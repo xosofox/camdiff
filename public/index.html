@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Video Diff</title>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+            body {
+                background-color: lightgreen;
+                font-family: Arial, sans-serif;
+            }
+
+            #history {
+                background-color: white;
+            }
+
+            table {
+                border-collapse: collapse;
+            }
+
+            td, th {
+                border: 1px solid black;
+            }
+
+            .preview {
+                padding: 5px;
+            }
+        </style>
+    </head>
+    <body>
+        <div style="display: flex">
+            <div>
+
+                Live:<br/>
+                <canvas id="canvas" class="preview"></canvas>
+                <br>
+                Still:<br>
+                <canvas id="still" class="preview"></canvas>
+                <br/>
+                Previous:<br>
+                <canvas id="prev" class="preview"></canvas>
+                <br/>
+            </div>
+            <div>
+
+                Diff:<br/>
+                <canvas id="diff" class="preview"></canvas>
+                <br/>
+                Grayscale:<br>
+                <canvas id="diff2" class="preview"></canvas>
+                <br/>
+                Black/White:<br>
+                <canvas id="diff3" class="preview"></canvas>
+                <br/>
+                <table>
+                    <thead>
+                    <tr>
+                        <th>RGB Diff</th>
+                        <th>Min</th>
+                        <th>Current</th>
+                        <th>Max</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <th>Abs</th>
+                        <td id="diffmin"></td>
+                        <td id="totaldiff"></td>
+                        <td id="diffmax"></td>
+                    </tr>
+                    <tr>
+                        <th>Per Pixel</th>
+                        <td id="diffminpp"></td>
+                        <td id="totaldiffpp"></td>
+                        <td id="diffmaxpp"></td>
+                    </tr>
+                    </tbody>
+                </table>
+                <br>
+            </div>
+        </div>
+        Diff History Length: <input id="historyLength" type="number" min="1" style="width: 80px"><br>
+        <canvas id="history" width="600" height="200"></canvas>
+
+        <script>
+            let HISTORY_LENGTH = 120;
+            const WIDTH = 320
+            const RATIO = 16 / 9;
+            const HEIGHT = Math.round(WIDTH / RATIO);
+
+            const previews = document.getElementsByClassName('preview');
+            for (let i = 0; i < previews.length; i++) {
+                previews[i].width = WIDTH;
+                previews[i].height = HEIGHT;
+            }
+
+            const video = document.createElement('video');
+            const canvas = document.getElementById('canvas');
+            const still = document.getElementById('still');
+            const prev = document.getElementById('prev');
+            const diff = document.getElementById('diff');
+            const diff2 = document.getElementById('diff2');
+            const diff3 = document.getElementById('diff3');
+            const mediaDevices = navigator.mediaDevices;
+            const historyInput = document.getElementById('historyLength');
+            historyInput.value = HISTORY_LENGTH;
+            historyInput.addEventListener('input', (e) => {
+                HISTORY_LENGTH = parseInt(historyInput.value);
+            });
+            const diffHistory = [];
+            const diffLabels = [];
+
+            mediaDevices.getUserMedia({video: true, audio: false})
+                .then(stream => {
+                    video.srcObject = stream;
+                    video.play();
+                })
+                .catch(error => {
+                    console.error(`getUserMedia error: ${error}`);
+                });
+
+            const zeropad = (n) => {
+                if (n < 10) return '0' + n;
+                return '' + n;
+            }
+
+            const chartData = {
+                labels: [],
+                datasets: [{
+                    label: 'Bewegung',
+                    data: [],
+                    borderColor: "lightblue",
+                    borderWidth: 1,
+                    fill: true,
+                    backgroundColor: 'lightblue',
+                    radius: 0,
+                    tension: 0.3
+                }]
+            };
+            const options = {
+                animation: false,
+                responsive: false,
+                scales: {
+                    x: {
+                        display: true
+                    },
+                    y: {
+                        display: true,
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+                    tooltips: {
+                        enabled: true,
+                    }
+                }
+            };
+            const sparklineChart = new Chart(document.getElementById('history'), {
+                type: 'line',
+                data: chartData,
+                options: options
+            });
+            const context = canvas.getContext('2d');
+            const stillContext = still.getContext('2d', {willReadFrequently: true});
+            const prevContext = prev.getContext('2d', {willReadFrequently: true});
+            const diffContext = diff.getContext('2d', {willReadFrequently: true});
+            const diff2Context = diff2.getContext('2d', {willReadFrequently: true});
+            const diff3Context = diff3.getContext('2d', {willReadFrequently: true});
+
+            function drawVideo() {
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                requestAnimationFrame(drawVideo);
+            }
+
+            function takeStillFrame() {
+                prevContext.drawImage(still, 0, 0, canvas.width, canvas.height);
+                stillContext.drawImage(video, 0, 0, canvas.width, canvas.height);
+            }
+
+            const showDiff = () => {
+                let totalDiff = 0;
+                const stillData = stillContext.getImageData(0, 0, canvas.width, canvas.height);
+                const prevData = prevContext.getImageData(0, 0, canvas.width, canvas.height);
+                const diffData = diffContext.getImageData(0, 0, canvas.width, canvas.height);
+                const diff2Data = diff2Context.getImageData(0, 0, canvas.width, canvas.height);
+                const diff3Data = diff3Context.getImageData(0, 0, canvas.width, canvas.height);
+                for (let h = 0; h < canvas.height; h++) {
+                    for (let w = 0; w < canvas.width; w++) {
+                        const idx = (h * canvas.width + w) * 4;
+                        diffData.data[idx + 0] = Math.abs(stillData.data[idx + 0] - prevData.data[idx + 0]);
+                        diffData.data[idx + 1] = Math.abs(stillData.data[idx + 1] - prevData.data[idx + 1]);
+                        diffData.data[idx + 2] = Math.abs(stillData.data[idx + 2] - prevData.data[idx + 2]);
+                        diffData.data[idx + 3] = 255;
+                        const diff = diffData.data[idx + 0] + diffData.data[idx + 1] + diffData.data[idx + 2];
+                        //diff2
+                        diff2Data.data[idx + 0] = diff;
+                        diff2Data.data[idx + 1] = diff;
+                        diff2Data.data[idx + 2] = diff;
+                        diff2Data.data[idx + 3] = 255;
+                        totalDiff += diff;
+                        //diff3
+                        const THRES = 50;
+                        diff3Data.data[idx + 0] = diff > THRES ? 255 : 0;
+                        diff3Data.data[idx + 1] = diff > THRES ? 255 : 0;
+                        diff3Data.data[idx + 2] = diff > THRES ? 255 : 0;
+                        diff3Data.data[idx + 3] = 255;
+                    }
+                }
+                diffHistory.push(totalDiff);
+                const now = new Date();
+                const t = now.getHours() + ':' + zeropad(now.getMinutes()) + ':' + zeropad(now.getSeconds());
+                diffLabels.push(t);
+                while (diffHistory.length > HISTORY_LENGTH) {
+                    diffHistory.shift();
+                    diffLabels.shift();
+                }
+                chartData.datasets[0].data = diffHistory;
+                chartData.labels = diffLabels;
+                sparklineChart.update();
+
+                diffContext.putImageData(diffData, 0, 0);
+                diff2Context.putImageData(diff2Data, 0, 0);
+                diff3Context.putImageData(diff3Data, 0, 0);
+
+                let min = totalDiff;
+                let max = totalDiff;
+
+                diffHistory.forEach((v) => {
+                    if (v < min) min = v;
+                    if (v > max) max = v;
+                })
+
+                document.getElementById('totaldiff').innerText = totalDiff;
+                document.getElementById('diffmin').innerText = min;
+                document.getElementById('diffmax').innerText = max;
+                document.getElementById('diffminpp').innerText = (min / HEIGHT / WIDTH).toFixed(2);
+                document.getElementById('totaldiffpp').innerText = (totalDiff / HEIGHT / WIDTH).toFixed(2);
+                document.getElementById('diffmaxpp').innerText = (max / HEIGHT / WIDTH).toFixed(2);
+            }
+
+            setInterval(() => {
+                takeStillFrame();
+                showDiff();
+            }, 500);
+
+            video.addEventListener('play', () => {
+                drawVideo();
+            });
+
+            // remove startup diffs
+            setTimeout(() => {
+                diffHistory.shift();
+                diffHistory.shift();
+                diffHistory.shift();
+                diffHistory.shift();
+                diffHistory.shift();
+                diffHistory.shift();
+            }, 5000);
+        </script>
+
+        <h1>What's this?</h1>
+        <p>
+            It's about "image change"
+        </p>
+        <p>
+            Assuming you grant the page the acces to your camera, you should see three images.<br/>
+            One live feed of your camera, and two still images; the second being the previous one.<br/>
+            On the right you see three different "Difference Calculation Images".
+        </p>
+        <p>Technical background: It's a simple "diff" of the RGB values of Still vs Previous.
+            "Abs" are total accumulated diffs. "Per Pixel" is the average taking image dimensions into account</p>
+        <h2>Why???</h2>
+        <p>I was trying to find a way how to detect motion so I could direct a camera on the street in front of our
+            house and figure out when the road is the busiest.</p>
+        <p>Logging of motion is currently still missing, this is nothing but a first shot.<br>
+            I might want to send values to a graphite database or something similar for reporting</p>
+    </body>
+</html>
