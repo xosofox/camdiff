@@ -275,19 +275,20 @@
             }, 5000);
         </script>
 
-        <h1>What's this?</h1>
+        <h1>What is this?</h1>
         <p>
             It's about "image change"
         </p>
         <p>
-            Assuming you grant the page the acces to your camera, you should see three images.<br/>
-            One live feed of your camera, and two still images; the second being the previous one.<br/>
-            On the right you see three different "Difference Calculation Images".
+            Assuming you grant this page access to your camera, you should see three images on the left side.<br/>
+            One live feed of your camera, and two still images; the second always being a copy of the previous one.<br/>
+            On the right you see three different "Difference Calculation Images". No special reasons, I was just playing
+            around.
         </p>
         <p>Technical background: It's a simple "diff" of the RGB values of Still vs Previous.
-            "Abs" are total accumulated diffs. "Per Pixel" is the average taking image dimensions into account</p>
+            "Abs" are total accumulated diffs. "Per Pixel" is the average taking image dimensions into account.</p>
         <h2>Why???</h2>
-        <p>I was trying to find a way how to detect motion so I could direct a camera on the street in front of our
+        <p>I was trying to find a way how to detect motion, so I could direct a camera on the street in front of our
             house and figure out when the road is the busiest.</p>
         <p>Logging of motion is currently still missing, this is nothing but a first shot.<br>
             I might want to send values to a graphite database or something similar for reporting</p>
